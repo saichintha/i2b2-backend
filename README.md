@@ -1,0 +1,1 @@
+This project contains the accompanying backend API server (uses JSON as the main medium of data transfer) that powers the i2b2 Web Client.
