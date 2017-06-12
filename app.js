@@ -33,6 +33,49 @@ const initial = "SET search_path TO i2b2metadata; SELECT c_fullname FROM i2b2 WH
 
 const example = "SET search_path TO i2b2demodata; SELECT DISTINCT (PATIENT_NUM) FROM OBSERVATION_FACT WHERE CONCEPT_CD IN (SELECT CONCEPT_CD FROM CONCEPT_DIMENSION WHERE CONCEPT_PATH LIKE '%Neurologic Disorders (320-389)\\(346) Migraine\\%');";
 
+// ------------------------------------------------------------------------- //
+
+function getPatientNum(concept_dimcode) {
+  return new Promise((resolve, reject) => {
+    // console.log('Concept Dimcode', concept_dimcode)
+    concept_dimcode = concept_dimcode.replace(/\\/g, "\\\\")
+  const query = "SET search_path TO i2b2demodata;  SELECT CONCEPT_CD FROM CONCEPT_DIMENSION WHERE CONCEPT_PATH LIKE " + "'%"+ concept_dimcode + "%' ";
+  // console.log('Query', query);
+
+      db.query(query)
+      .then((data) => {
+          // console.log(data);
+          var dataArray = data.map(function(row){
+            return ("'"+ row.concept_cd + "'");
+          })
+          // console.log('Data Array', dataArray)
+          var sql = "SET search_path TO i2b2demodata; SELECT DISTINCT (PATIENT_NUM) FROM OBSERVATION_FACT WHERE CONCEPT_CD IN ";
+
+          sql = sql + '(';
+          for (var i in dataArray) {
+            sql = sql + dataArray[i] + ',';
+          }
+          sql = sql.replace(/.$/,"") + ')';
+          // console.log('Prepared final SQL', sql);
+          db.query(sql)
+                .then((data) => {
+                  const len = data.length.toString();
+                  console.log('---------------------------------------------');
+                  console.log(concept_dimcode, ' - ', len);
+                  console.log('---------------------------------------------');
+                  resolve(len);
+                })
+                .catch((err) => reject(err));
+          })
+          .catch(error => {
+              reject(error);
+          })
+  });
+  
+}
+
+// ------------------------------------------------------------------------- //
+
 app.get('/api/ontologyTree/:level', (req, res, next) => {
   db.query(initial, [req.params.level])
     .then(data => {
@@ -46,7 +89,7 @@ app.get('/api/ontologyTree/:level', (req, res, next) => {
 
 app.post('/api/search', (req, res, next) => {
   // console.log(req.body.searchText);
-  const query = "SET search_path TO i2b2metadata;  SELECT c_name FROM i2b2 WHERE LOWER(c_name) LIKE $1 escape '#' LIMIT 10;";
+  const query = "SET search_path TO i2b2metadata;  SELECT c_name, c_fullname FROM i2b2 WHERE LOWER(c_name) LIKE $1 escape '#' LIMIT 20;";
   const insertSearchText = '%' + req.body.searchText + '%';
   db.query(query, [insertSearchText])
   .then((data) => {
@@ -58,6 +101,12 @@ app.post('/api/search', (req, res, next) => {
     console.log(err);
   })
 });
+
+app.post('/api/getp', (req, res, next) => {
+  getPatientNum(req.body.concept_dimcode)
+  .then((result) => res.status(200).send(result))
+  .catch((err) => res.status(500).send(err));
+})
 
 app.get('/api/test', (req, res, next) => {
   db.query("SET search_path TO i2b2demodata;  SELECT CONCEPT_CD FROM CONCEPT_DIMENSION WHERE CONCEPT_PATH LIKE '%Demographics\\Gender\\Male\\%'  escape '#';")
