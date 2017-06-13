@@ -51,18 +51,20 @@ function getPatientNum(concept_dimcode) {
           // console.log('Data Array', dataArray)
           var sql = "SET search_path TO i2b2demodata; SELECT DISTINCT (PATIENT_NUM) FROM OBSERVATION_FACT WHERE CONCEPT_CD IN ";
 
+          // sql = sql + '(' + "'" + concept_dimcode + "%'" + ")";
           sql = sql + '(';
           for (var i in dataArray) {
             sql = sql + dataArray[i] + ',';
           }
           sql = sql.replace(/.$/,"") + ')';
           // console.log('Prepared final SQL', sql);
+          // console.log(sql);
           db.query(sql)
                 .then((data) => {
                   const len = data.length.toString();
-                  console.log('---------------------------------------------');
-                  console.log(concept_dimcode, ' - ', len);
-                  console.log('---------------------------------------------');
+                  // console.log('---------------------------------------------');
+                  // console.log(concept_dimcode, ' - ', len);
+                  // console.log('---------------------------------------------');
                   resolve(len);
                 })
                 .catch((err) => reject(err));
@@ -71,7 +73,6 @@ function getPatientNum(concept_dimcode) {
               reject(error);
           })
   });
-  
 }
 
 // ------------------------------------------------------------------------- //
@@ -89,7 +90,7 @@ app.get('/api/ontologyTree/:level', (req, res, next) => {
 
 app.post('/api/search', (req, res, next) => {
   // console.log(req.body.searchText);
-  const query = "SET search_path TO i2b2metadata;  SELECT c_name, c_fullname FROM i2b2 WHERE LOWER(c_name) LIKE $1 escape '#' LIMIT 20;";
+  const query = "SET search_path TO i2b2metadata;  SELECT c_name, c_fullname, c_basecode, c_visualattributes, c_dimcode FROM i2b2 WHERE LOWER(c_name) LIKE $1 escape '#' LIMIT 20;";
   const insertSearchText = '%' + req.body.searchText + '%';
   db.query(query, [insertSearchText])
   .then((data) => {
