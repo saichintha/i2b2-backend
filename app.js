@@ -34,6 +34,39 @@ const initial = "SET search_path TO i2b2metadata; SELECT c_fullname FROM i2b2 WH
 const example = "SET search_path TO i2b2demodata; SELECT DISTINCT (PATIENT_NUM) FROM OBSERVATION_FACT WHERE CONCEPT_CD IN (SELECT CONCEPT_CD FROM CONCEPT_DIMENSION WHERE CONCEPT_PATH LIKE '%Neurologic Disorders (320-389)\\(346) Migraine\\%');";
 
 // ------------------------------------------------------------------------- //
+function getPatientsFromBasecode(concept_basecode) {
+  return new Promise((resolve, reject) => {
+    var sql = "SET search_path TO i2b2demodata; SELECT DISTINCT (PATIENT_NUM) FROM OBSERVATION_FACT WHERE CONCEPT_CD LIKE " + "'%" + concept_basecode + "%'";
+
+    db.query(sql)
+        .then((data) => {
+            const len = data.length.toString();
+            resolve(data);
+        })
+        .catch((err) => reject(err));
+  })
+}
+
+function getPatientDemInfo(patientArrayString) {
+  return new Promise((resolve, reject) => {
+    console.log('Param PDem', patientArrayString);
+    var dataArray = JSON.parse("[" + patientArrayString + "]")
+    console.log('PDemArray', dataArray);
+    var sql = "SET search_path TO i2b2demodata; SELECT CONCEPT_CD FROM OBSERVATION_FACT WHERE (CONCEPT_CD LIKE 'DEM|RACE%' OR CONCEPT_CD LIKE 'DEM|AGE%' OR CONCEPT_CD LIKE 'DEM|RELIGION%' OR CONCEPT_CD LIKE 'DEM|LANGUAGE%' OR CONCEPT_CD LIKE 'DEM|SEX%') AND PATIENT_NUM IN ";
+
+    sql = sql + '(';
+      for (var i in dataArray) {
+        sql = sql + dataArray[i] + ',';
+      }
+    sql = sql.replace(/.$/,"") + ')';
+
+    db.query(sql)
+      .then((data) => {
+          resolve(data);
+      })
+      .catch((err) => reject(err));
+  });
+}
 
 function getPatientNum(concept_dimcode) {
   return new Promise((resolve, reject) => {
@@ -102,6 +135,23 @@ app.post('/api/search', (req, res, next) => {
     console.log(err);
   })
 });
+
+app.post('/api/usingBasecode', (req, res, next) => {
+  getPatientsFromBasecode(req.body.searchText)
+  .then(data => {
+    res.set('json');
+    res.status(200).send(data);
+  })
+})
+
+app.post('/api/getPatientDem', (req, res, next) => {
+  getPatientDemInfo(req.body.patientSet)
+  .then(data => {
+    res.set('json');
+    res.status(200).send(data);
+  })
+  .catch(err => console.log(err))
+})
 
 app.post('/api/getp', (req, res, next) => {
   getPatientNum(req.body.concept_dimcode)
