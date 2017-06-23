@@ -1,5 +1,6 @@
 'use strict';
 const express = require('express');
+const Sequelize = require('sequelize');
 var bodyParser = require('body-parser');
 var allowCrossDomain = function(req, res, next) {
     res.header('Access-Control-Allow-Origin', '*');
@@ -26,6 +27,37 @@ var cn = {
 };
 var db = pgp(cn);
 
+const sequelize = new Sequelize('i2b2', 'saichintha', '', {
+  host: 'localhost',
+  dialect: 'postgres',
+  dialectOptions: {
+    multipleStatements: true
+  },
+});
+
+sequelize
+  .authenticate()
+  .then(() => {
+    console.log('Connection has been established successfully.');
+  })
+  .catch(err => {
+    console.error('Unable to connect to the database:', err);
+  });
+
+// sequelize.query("SET search_path TO i2b2metadata;  SELECT c_name, c_fullname, c_basecode, c_visualattributes, c_dimcode FROM i2b2 WHERE LOWER(c_name) LIKE :searchText", {
+//   replacements: {searchText: '%loinc:1920%'}
+// }).spread((results, metadata) => {
+//   console.log(results)
+// })
+
+// sequelize.query("SET search_path TO i2b2demodata; SELECT CONCEPT_CD, COUNT (*) FROM (SELECT CONCEPT_CD FROM OBSERVATION_FACT WHERE (CONCEPT_CD LIKE 'DEM|RACE%' OR CONCEPT_CD LIKE 'DEM|AGE%' OR CONCEPT_CD LIKE 'DEM|RELIGION%' OR CONCEPT_CD LIKE 'DEM|LANGUAGE%' OR CONCEPT_CD LIKE 'DEM|SEX%') AND PATIENT_NUM IN (SELECT DISTINCT(PATIENT_NUM) FROM OBSERVATION_FACT WHERE CONCEPT_CD LIKE '%LOINC:19%')) A GROUP BY concept_cd ORDER BY 1;").spread((results) => {
+//   console.log(results);
+// });
+
+// sequelize.query("SET search_path TO i2b2demodata; SELECT DISTINCT (PATIENT_NUM) FROM OBSERVATION_FACT WHERE CONCEPT_CD LIKE '%LOINC:1920-8%'").spread((results) => {
+//   console.log(results);
+// });
+
 // ------------------------------------------------------------------------- //
 const getDimCode = "SET search_path TO i2b2demodata; SELECT CONCEPT_CD FROM concept_dimension WHERE concept_path LIKE '\\i2b2\\Demographics\\Zip codes\\Colorado\\Swink\\81077\\' escape '#';";
 
@@ -36,104 +68,42 @@ const example = "SET search_path TO i2b2demodata; SELECT DISTINCT (PATIENT_NUM) 
 // ------------------------------------------------------------------------- //
 function getPatientsFromBasecode(concept_basecode) {
   return new Promise((resolve, reject) => {
-    var sql = "SET search_path TO i2b2demodata; SELECT DISTINCT (PATIENT_NUM) FROM OBSERVATION_FACT WHERE CONCEPT_CD LIKE " + "'%" + concept_basecode + "%'";
-
-    db.query(sql)
-        .then((data) => {
-            const len = data.length.toString();
-            resolve(data);
-        })
-        .catch((err) => reject(err));
+    sequelize.query("SET search_path TO i2b2demodata; SELECT DISTINCT (PATIENT_NUM) FROM OBSERVATION_FACT WHERE CONCEPT_CD LIKE :conceptBasecode", {
+      replacements: {conceptBasecode: "%"+ concept_basecode + "%"}
+    }).spread((results, metadata) => {
+      resolve(results.length.toString());
+    })
   })
 }
 
-function getPatientDemInfo(patientArrayString) {
+function getPatientDemInfo(concept_basecode) {
   return new Promise((resolve, reject) => {
-    console.log('Param PDem', patientArrayString);
-    var dataArray = JSON.parse("[" + patientArrayString + "]")
-    console.log('PDemArray', dataArray);
-    var sql = "SET search_path TO i2b2demodata; SELECT CONCEPT_CD FROM OBSERVATION_FACT WHERE (CONCEPT_CD LIKE 'DEM|RACE%' OR CONCEPT_CD LIKE 'DEM|AGE%' OR CONCEPT_CD LIKE 'DEM|RELIGION%' OR CONCEPT_CD LIKE 'DEM|LANGUAGE%' OR CONCEPT_CD LIKE 'DEM|SEX%') AND PATIENT_NUM IN ";
-
-    sql = sql + '(';
-      for (var i in dataArray) {
-        sql = sql + dataArray[i] + ',';
-      }
-    sql = sql.replace(/.$/,"") + ')';
-
-    db.query(sql)
-      .then((data) => {
-          resolve(data);
-      })
-      .catch((err) => reject(err));
+    sequelize.query("SET search_path to i2b2demodata; SELECT CONCEPT_CD, COUNT (*) FROM (SELECT CONCEPT_CD FROM OBSERVATION_FACT WHERE (CONCEPT_CD LIKE 'DEM|RACE%' OR CONCEPT_CD LIKE 'DEM|AGE%' OR CONCEPT_CD LIKE 'DEM|RELIGION%' OR CONCEPT_CD LIKE 'DEM|LANGUAGE%' OR CONCEPT_CD LIKE 'DEM|SEX%') AND PATIENT_NUM IN (SELECT DISTINCT(PATIENT_NUM) FROM OBSERVATION_FACT WHERE CONCEPT_CD LIKE :conceptBasecode)) A GROUP BY concept_cd ORDER BY 1;", {
+      replacements: {conceptBasecode: "%"+ concept_basecode + "%"}
+    }).spread((results, metadata) => {
+      resolve(results);
+    })
   });
 }
 
-function getPatientNum(concept_dimcode) {
-  return new Promise((resolve, reject) => {
-    // console.log('Concept Dimcode', concept_dimcode)
-    concept_dimcode = concept_dimcode.replace(/\\/g, "\\\\")
-  const query = "SET search_path TO i2b2demodata;  SELECT CONCEPT_CD FROM CONCEPT_DIMENSION WHERE CONCEPT_PATH LIKE " + "'%"+ concept_dimcode + "%' ";
-  // console.log('Query', query);
-
-      db.query(query)
-      .then((data) => {
-          // console.log(data);
-          var dataArray = data.map(function(row){
-            return ("'"+ row.concept_cd + "'");
-          })
-          // console.log('Data Array', dataArray)
-          var sql = "SET search_path TO i2b2demodata; SELECT DISTINCT (PATIENT_NUM) FROM OBSERVATION_FACT WHERE CONCEPT_CD IN ";
-
-          // sql = sql + '(' + "'" + concept_dimcode + "%'" + ")";
-          sql = sql + '(';
-          for (var i in dataArray) {
-            sql = sql + dataArray[i] + ',';
-          }
-          sql = sql.replace(/.$/,"") + ')';
-          // console.log('Prepared final SQL', sql);
-          // console.log(sql);
-          db.query(sql)
-                .then((data) => {
-                  const len = data.length.toString();
-                  // console.log('---------------------------------------------');
-                  // console.log(concept_dimcode, ' - ', len);
-                  // console.log('---------------------------------------------');
-                  resolve(len);
-                })
-                .catch((err) => reject(err));
-          })
-          .catch(error => {
-              reject(error);
-          })
-  });
-}
 
 // ------------------------------------------------------------------------- //
-
 app.get('/api/ontologyTree/:level', (req, res, next) => {
-  db.query(initial, [req.params.level])
-    .then(data => {
+  sequelize.query("SET search_path TO i2b2metadata; SELECT c_fullname FROM i2b2 WHERE c_hlevel=:level AND c_tablename<>'MODIFIER_DIMENSION'", {
+      replacements: {level: req.params.level}
+    }).spread((results, metadata) => {
       res.set('json');
-      res.status(200).send(data); // print data;
-    })
-    .catch(error => {
-        res.status(500).send(error); // print the error;
+      res.status(200).send(results);
     });
 });
 
 app.post('/api/search', (req, res, next) => {
-  // console.log(req.body.searchText);
-  const query = "SET search_path TO i2b2metadata;  SELECT c_name, c_fullname, c_basecode, c_visualattributes, c_dimcode FROM i2b2 WHERE LOWER(c_name) LIKE $1 escape '#' LIMIT 20;";
-  const insertSearchText = '%' + req.body.searchText + '%';
-  db.query(query, [insertSearchText])
-  .then((data) => {
-    // console.log(data)
-    res.set('json');
-    res.status(200).send(data).end();
-  })
-  .catch((err) => {
-    console.log(err);
-  })
+  sequelize.query("SET search_path TO i2b2metadata;  SELECT c_name, c_fullname, c_basecode, c_visualattributes, c_dimcode FROM i2b2 WHERE LOWER(c_name) LIKE :searchText escape '#' LIMIT 20", {
+      replacements: {searchText: "%"+ req.body.searchText + "%"}
+    }).spread((results, metadata) => {
+      res.set('json');
+      res.status(200).send(results);
+    });
 });
 
 app.post('/api/usingBasecode', (req, res, next) => {
@@ -145,53 +115,13 @@ app.post('/api/usingBasecode', (req, res, next) => {
 })
 
 app.post('/api/getPatientDem', (req, res, next) => {
-  getPatientDemInfo(req.body.patientSet)
+  getPatientDemInfo(req.body.concept_basecode)
   .then(data => {
     res.set('json');
     res.status(200).send(data);
   })
   .catch(err => console.log(err))
 })
-
-app.post('/api/getp', (req, res, next) => {
-  getPatientNum(req.body.concept_dimcode)
-  .then((result) => res.status(200).send(result))
-  .catch((err) => res.status(500).send(err));
-})
-
-app.get('/api/test', (req, res, next) => {
-  db.query("SET search_path TO i2b2demodata;  SELECT CONCEPT_CD FROM CONCEPT_DIMENSION WHERE CONCEPT_PATH LIKE '%Demographics\\Gender\\Male\\%'  escape '#';")
-    .then((data) => {
-      var dataArray = data.map(function(row){
-        return ("'"+ row.concept_cd + "'");
-      })
-      // console.log('DataArray after Join', typeof(dataArray.join()), dataArray.join());
-      var sql = "SET search_path TO i2b2demodata; SELECT DISTINCT (PATIENT_NUM) FROM OBSERVATION_FACT WHERE CONCEPT_CD IN ";
-
-      // var sql ="SELECT CONCEPT_CD FROM OBSERVATION_FACT WHERE CONCEPT_CD LIKE 'DEM|Age%' AND PATIENT_NUM IN (SELECT PATIENT_NUM FROM OBSERVATION_FACT WHERE CONCEPT_CD IN "
-      
-      sql = sql + '(';
-      for (var i in dataArray) {
-        sql = sql + dataArray[i] + ',';
-      }
-      sql = sql.replace(/.$/,"") + ')';
-
-      console.log(sql);
-
-
-
-      db.query(sql)
-      .then((data) => {
-        const len = data.length.toString() + ' patients';
-        console.log(len)
-        res.status(200).send(len);
-      })
-      .catch((err) => console.log(err));
-    })
-    .catch(error => {
-        console.log(error);
-    })
-});
 
 // ------------------------------------------------------------------------- //
 
