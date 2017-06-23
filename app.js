@@ -88,6 +88,33 @@ function getPatientDemInfo(concept_basecode) {
 
 
 // ------------------------------------------------------------------------- //
+app.post('/api/groupQuery', (req, res, next) => {
+  const queryGroups = JSON.parse(req.body.queryGroups);
+  // console.log(queryGroups, typeof(queryGroups));
+  var conceptTemplate = "SELECT unnest(array(SELECT DISTINCT PATIENT_NUM FROM OBSERVATION_FACT WHERE CONCEPT_CD LIKE '%@conceptTemplate%'))";
+  var finalSQL = "SELECT array_length(array(@stitchedQuery),1);"
+  var stitchedQuery = "";
+
+  for (var i in queryGroups) {
+    const concept = queryGroups[i];
+    var conceptSQL = conceptTemplate.replace('@conceptTemplate', concept);
+    if (i > 0) {
+      conceptSQL = 'INTERSECT ' + conceptSQL;
+    }
+    stitchedQuery += conceptSQL
+  }
+
+  finalSQL = finalSQL.replace('@stitchedQuery', stitchedQuery);
+  finalSQL = "SET search_path TO i2b2demodata; " + finalSQL;
+  console.log(finalSQL);
+
+  sequelize.query(finalSQL).spread((results) => {
+    console.log(results);
+    res.set('json');
+    res.status(200).send(results);
+  });
+})
+
 app.get('/api/ontologyTree/:level', (req, res, next) => {
   sequelize.query("SET search_path TO i2b2metadata; SELECT c_fullname FROM i2b2 WHERE c_hlevel=:level AND c_tablename<>'MODIFIER_DIMENSION'", {
       replacements: {level: req.params.level}
