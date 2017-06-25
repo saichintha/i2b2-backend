@@ -92,7 +92,10 @@ app.post('/api/groupQuery', (req, res, next) => {
   const queryGroups = JSON.parse(req.body.queryGroups);
   // console.log(queryGroups, typeof(queryGroups));
   var conceptTemplate = "SELECT unnest(array(SELECT DISTINCT PATIENT_NUM FROM OBSERVATION_FACT WHERE CONCEPT_CD LIKE '%@conceptTemplate%'))";
-  var finalSQL = "SELECT array_length(array(@stitchedQuery),1);"
+
+  var demTemplate = "SELECT CONCEPT_CD, COUNT (*) FROM(SELECT CONCEPT_CD FROM OBSERVATION_FACT WHERE (CONCEPT_CD LIKE 'DEM|RACE%' OR CONCEPT_CD LIKE 'DEM|AGE%' OR CONCEPT_CD LIKE 'DEM|RELIGION%' OR CONCEPT_CD LIKE 'DEM|LANGUAGE%' OR CONCEPT_CD LIKE 'DEM|SEX%') AND PATIENT_NUM IN (@complexQuery)) A GROUP BY concept_cd ORDER BY 1";
+
+  // var finalSQL = "SELECT array_length(array(@stitchedQuery),1);"
   var stitchedQuery = "";
 
   for (var i in queryGroups) {
@@ -104,12 +107,12 @@ app.post('/api/groupQuery', (req, res, next) => {
     stitchedQuery += conceptSQL
   }
 
-  finalSQL = finalSQL.replace('@stitchedQuery', stitchedQuery);
+  var finalSQL = demTemplate.replace('@complexQuery', stitchedQuery);
   finalSQL = "SET search_path TO i2b2demodata; " + finalSQL;
-  console.log(finalSQL);
+  // console.log(finalSQL);
 
   sequelize.query(finalSQL).spread((results) => {
-    console.log(results);
+    // console.log(results);
     res.set('json');
     res.status(200).send(results);
   });
