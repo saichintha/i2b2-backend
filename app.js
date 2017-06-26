@@ -99,13 +99,21 @@ app.post('/api/groupQuery', (req, res, next) => {
   var stitchedQuery = "";
 
   for (var i in queryGroups) {
-    const concept = queryGroups[i];
-    var conceptSQL = conceptTemplate.replace('@conceptTemplate', concept);
-    if (i > 0) {
-      conceptSQL = 'INTERSECT ' + conceptSQL;
+    for(var j in queryGroups[i]){
+      // console.log('i', i, 'j', j)
+      if(i>0 && j==0){
+        stitchedQuery += " INTERSECT ";
+      }
+      const concept = queryGroups[i][j];
+      var conceptSQL = conceptTemplate.replace('@conceptTemplate', concept);
+      if (j > 0) {
+        conceptSQL = ' UNION ' + conceptSQL;
+      }
+      stitchedQuery += conceptSQL
     }
-    stitchedQuery += conceptSQL
   }
+
+  // console.log('Test: ', stitchedQuery);
 
   var finalSQL = demTemplate.replace('@complexQuery', stitchedQuery);
   finalSQL = "SET search_path TO i2b2demodata; " + finalSQL;
