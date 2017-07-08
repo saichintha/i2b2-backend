@@ -136,13 +136,24 @@ app.get('/api/ontologyTree/:level', (req, res, next) => {
 });
 
 app.post('/api/search', (req, res, next) => {
-  sequelize.query("SET search_path TO i2b2metadata;  SELECT c_name, c_fullname, c_basecode, c_visualattributes, c_dimcode FROM i2b2 WHERE LOWER(c_name) LIKE :searchText escape '#' LIMIT 20", {
+  sequelize.query("SET search_path TO i2b2metadata;  SELECT DISTINCT ON (c_basecode) c_name, c_fullname, c_basecode, c_visualattributes, c_dimcode FROM i2b2 WHERE LOWER(c_name) LIKE :searchText escape '#' LIMIT 20;", {
       replacements: {searchText: "%"+ req.body.searchText + "%"}
     }).spread((results, metadata) => {
       res.set('json');
       res.status(200).send(results);
     });
 });
+
+app.post('/api/awesome', (req, res, next) => {
+  sequelize.query("SET search_path TO i2b2demodata; DROP TABLE IF EXISTS temp_data; CREATE temporary TABLE temp_data AS (SELECT concept_cd, patients FROM (SELECT concept_cd, COUNT(concept_cd) AS patients FROM (SELECT DISTINCT PATIENT_NUM, CONCEPT_CD FROM OBSERVATION_FACT WHERE CONCEPT_CD IN (SELECT DISTINCT c_basecode FROM i2b2metadata.i2b2 WHERE LOWER(c_name) LIKE :searchText ESCAPE '#')) AS B GROUP BY concept_cd ORDER BY patients DESC) AS A GROUP BY concept_cd, patients ORDER BY patients DESC LIMIT 15); SELECT * FROM (SELECT DISTINCT ON (temp.concept_cd) temp.concept_cd AS c_basecode, temp.patients AS patient_num, main.name_char AS c_name, main.concept_path AS c_fullname FROM temp_data temp INNER JOIN concept_dimension main ON temp.concept_cd = main.concept_cd) A ORDER BY patient_num DESC;", {
+      replacements: {searchText: "%"+ req.body.searchText + "%"}
+    }).spread((results, metadata) => {
+      res.set('json');
+      res.status(200).send(results);
+    });
+});
+
+
 
 app.post('/api/usingBasecode', (req, res, next) => {
   getPatientsFromBasecode(req.body.searchText)
