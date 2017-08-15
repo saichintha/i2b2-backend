@@ -1,5 +1,9 @@
 'use strict';
+var fs = require('fs');
 const express = require('express');
+
+const https = require('https');
+
 const Sequelize = require('sequelize');
 var bodyParser = require('body-parser');
 var allowCrossDomain = function(req, res, next) {
@@ -10,6 +14,7 @@ var allowCrossDomain = function(req, res, next) {
 }
 
 const app = express();
+
 app.enable('trust proxy');
 app.use( bodyParser.json() );       // to support JSON-encoded bodies
 app.use(bodyParser.urlencoded({     // to support URL-encoded bodies
@@ -17,18 +22,13 @@ app.use(bodyParser.urlencoded({     // to support URL-encoded bodies
 }));
 app.use(allowCrossDomain);
 
-var pgp = require('pg-promise')();
-var cn = {
-    host: 'localhost',
-    port: 5432,
-    database: 'i2b2',
-    user: 'saichintha',
-    password: ''
+const options = {
+    cert: fs.readFileSync('cert.pem'),
+    key: fs.readFileSync('key.pem')
 };
-var db = pgp(cn);
 
-const sequelize = new Sequelize('i2b2', 'saichintha', '', {
-  host: 'localhost',
+const sequelize = new Sequelize('i2b2', 'postgres', 'saichintha', {
+  host: '35.196.74.185',
   dialect: 'postgres',
   dialectOptions: {
     multipleStatements: true
@@ -43,20 +43,6 @@ sequelize
   .catch(err => {
     console.error('Unable to connect to the database:', err);
   });
-
-// sequelize.query("SET search_path TO i2b2metadata;  SELECT c_name, c_fullname, c_basecode, c_visualattributes, c_dimcode FROM i2b2 WHERE LOWER(c_name) LIKE :searchText", {
-//   replacements: {searchText: '%loinc:1920%'}
-// }).spread((results, metadata) => {
-//   console.log(results)
-// })
-
-// sequelize.query("SET search_path TO i2b2demodata; SELECT CONCEPT_CD, COUNT (*) FROM (SELECT CONCEPT_CD FROM OBSERVATION_FACT WHERE (CONCEPT_CD LIKE 'DEM|RACE%' OR CONCEPT_CD LIKE 'DEM|AGE%' OR CONCEPT_CD LIKE 'DEM|RELIGION%' OR CONCEPT_CD LIKE 'DEM|LANGUAGE%' OR CONCEPT_CD LIKE 'DEM|SEX%') AND PATIENT_NUM IN (SELECT DISTINCT(PATIENT_NUM) FROM OBSERVATION_FACT WHERE CONCEPT_CD LIKE '%LOINC:19%')) A GROUP BY concept_cd ORDER BY 1;").spread((results) => {
-//   console.log(results);
-// });
-
-// sequelize.query("SET search_path TO i2b2demodata; SELECT DISTINCT (PATIENT_NUM) FROM OBSERVATION_FACT WHERE CONCEPT_CD LIKE '%LOINC:1920-8%'").spread((results) => {
-//   console.log(results);
-// });
 
 // ------------------------------------------------------------------------- //
 const getDimCode = "SET search_path TO i2b2demodata; SELECT CONCEPT_CD FROM concept_dimension WHERE concept_path LIKE '\\i2b2\\Demographics\\Zip codes\\Colorado\\Swink\\81077\\' escape '#';";
@@ -136,6 +122,7 @@ app.get('/api/ontologyTree/:level', (req, res, next) => {
 });
 
 app.post('/api/search', (req, res, next) => {
+  console.log('Res', res);
   sequelize.query("SET search_path TO i2b2metadata;  SELECT DISTINCT ON (c_basecode) c_name, c_fullname, c_basecode, c_visualattributes, c_dimcode FROM i2b2 WHERE LOWER(c_name) LIKE :searchText escape '#' LIMIT 20;", {
       replacements: {searchText: "%"+ req.body.searchText + "%"}
     }).spread((results, metadata) => {
@@ -173,11 +160,12 @@ app.post('/api/getPatientDem', (req, res, next) => {
 })
 
 // ------------------------------------------------------------------------- //
-
 const PORT = process.env.PORT || 9000;
 app.listen(process.env.PORT || 9000, () => {
   console.log(`App listening on port ${PORT}`);
   console.log('Press Ctrl+C to quit.');
 });
+
+https.createServer(options, app).listen(8443);
 
 module.exports = app;
