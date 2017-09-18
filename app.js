@@ -28,7 +28,7 @@ const options = {
 };
 
 const sequelize = new Sequelize('i2b2', 'postgres', 'saichintha', {
-  host: '35.196.74.185',
+  host: 'localhost',
   dialect: 'postgres',
   dialectOptions: {
     multipleStatements: true
@@ -99,18 +99,48 @@ app.post('/api/groupQuery', (req, res, next) => {
     }
   }
 
-  // console.log('Test: ', stitchedQuery);
-
   var finalSQL = demTemplate.replace('@complexQuery', stitchedQuery);
   finalSQL = "SET search_path TO i2b2demodata; " + finalSQL;
-  // console.log(finalSQL);
-
+  
   sequelize.query(finalSQL).spread((results) => {
     // console.log(results);
     res.set('json');
     res.status(200).send(results);
   });
 })
+
+app.post('/api/commonPattern', (req, res, next) => {
+  const queryGroups = JSON.parse(req.body.queryGroups);
+  var conceptTemplate = "SELECT unnest(array(SELECT DISTINCT PATIENT_NUM FROM OBSERVATION_FACT WHERE CONCEPT_CD LIKE '%@conceptTemplate%'))";
+  var commonTemplate = "SET search_path TO i2b2demodata; DROP TABLE IF EXISTS temp_common; CREATE temporary TABLE temp_common AS (SELECT DISTINCT concept_cd AS common_concepts, COUNT(DISTINCT patient_num) AS patients FROM observation_fact WHERE patient_num IN (@patient_num) AND concept_cd NOT LIKE '%DEM%' AND concept_cd NOT LIKE '%Affy%' AND concept_cd NOT LIKE '%ICD9:%.%' AND concept_cd NOT LIKE '%birn%' GROUP BY concept_cd ORDER BY COUNT(DISTINCT patient_num) DESC); SELECT * FROM (SELECT DISTINCT ON (common_concepts) common_concepts, name_char, patients FROM (SELECT main.name_char, temp.common_concepts, temp.patients FROM temp_common temp INNER JOIN concept_dimension main ON temp.common_concepts = main.concept_cd) A ORDER BY common_concepts, patients DESC) B ORDER BY patients DESC;";
+  
+  var stitchedQuery = "";
+
+  for (var i in queryGroups) {
+    for(var j in queryGroups[i]){
+      // console.log('i', i, 'j', j)
+      if(i>0 && j==0){
+        stitchedQuery += " INTERSECT ";
+      }
+      const concept = queryGroups[i][j];
+      var conceptSQL = conceptTemplate.replace('@conceptTemplate', concept);
+      if (j > 0) {
+        conceptSQL = ' UNION ' + conceptSQL;
+      }
+      stitchedQuery += conceptSQL
+    }
+  }
+
+  var commonSQL = commonTemplate.replace('@patient_num', stitchedQuery);
+  console.log("Common SQL");
+  console.log(commonSQL);
+
+  sequelize.query(commonSQL).spread((results) => {
+    console.log(results);
+    res.set('json');
+    res.status(200).send(results);
+  })
+});
 
 app.get('/api/ontologyTree/:level', (req, res, next) => {
   sequelize.query("SET search_path TO i2b2metadata; SELECT c_fullname FROM i2b2 WHERE c_hlevel=:level AND c_tablename<>'MODIFIER_DIMENSION'", {

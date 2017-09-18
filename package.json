@@ -10,6 +10,8 @@
   "author": "",
   "license": "ISC",
   "dependencies": {
+    "body-parser": "^1.18.1",
+    "express": "^4.15.4",
     "pg": "^6.2.3",
     "pg-hstore": "^2.3.2",
     "pg-promise": "^5.8.2",
