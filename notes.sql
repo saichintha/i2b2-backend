@@ -1,11 +1,11 @@
 --------------------------------------------------------
--- SAMPLE QUERIES 
+-- SAMPLE QUERIES
 --------------------------------------------------------
 
 -- 1. Find all patients (return PATIENT_NUM) diagnosed with migraines
 SELECT DISTINCT (PATIENT_NUM)
 FROM OBSERVATION_FACT
-WHERE CONCEPT_CD IN 
+WHERE CONCEPT_CD IN
         (SELECT CONCEPT_CD
 FROM CONCEPT_DIMENSION
 WHERE CONCEPT_PATH LIKE '%Neurologic Disorders (320-389)\\(346) Migraine\\%');
@@ -75,7 +75,7 @@ SELECT concept_cd, COUNT (concept_cd) FROM (SELECT DISTINCT PATIENT_NUM, CONCEPT
 DROP TABLE IF EXISTS temp_data;
 CREATE temporary TABLE temp_data AS (
 SELECT concept_cd, patients FROM (
-SELECT concept_cd, COUNT(concept_cd) AS patients FROM 
+SELECT concept_cd, COUNT(concept_cd) AS patients FROM
 (SELECT DISTINCT PATIENT_NUM, CONCEPT_CD FROM OBSERVATION_FACT WHERE CONCEPT_CD IN
 (SELECT DISTINCT c_basecode FROM i2b2metadata.i2b2 WHERE LOWER(c_name) LIKE '%cholesterol%' ESCAPE '#')) AS B GROUP BY concept_cd ORDER BY patients DESC) AS A GROUP BY concept_cd, patients ORDER BY patients DESC);
 
@@ -84,3 +84,16 @@ SELECT * FROM (SELECT DISTINCT ON (temp.concept_cd) temp.concept_cd, temp.patien
 -- SELECT t2.c_basecode FROM i2b2metadata.i2b2 t1 INNER JOIN i2b2metadata.icd10_icd9 t2 ON LOWER(t2.c_name) LIKE '%migraine%' AND LOWER(t1.c_name)=LOWER(t2.c_name)
 
 SELECT DISTINCT t2.c_fullname, t2.c_basecode, t2.c_name FROM i2b2metadata.i2b2 t1 INNER JOIN i2b2metadata.icd10_icd9 t2 ON LOWER(t2.c_name) LIKE '%contact lens%' AND LOWER(t1.c_name) LIKE '%contact lens%'
+
+
+-- Patients for testing common patterns
+1000000023
+1000000047
+1000000061
+
+-- Patients common query (tentative)
+DROP TABLE IF EXISTS temp_common;
+
+CREATE temporary TABLE temp_common AS (SELECT DISTINCT concept_cd AS common_concepts, COUNT(DISTINCT patient_num) AS patients FROM observation_fact WHERE patient_num IN (1000000023, 1000000047, 1000000061) AND concept_cd NOT LIKE '%DEM%' AND concept_cd NOT LIKE '%Affy%' AND concept_cd NOT LIKE '%ICD9:%.%' AND concept_cd NOT LIKE '%birn%' GROUP BY concept_cd ORDER BY COUNT(DISTINCT patient_num) DESC);
+
+SELECT * FROM (SELECT DISTINCT ON (common_concepts) common_concepts, name_char, patients FROM (SELECT main.name_char, temp.common_concepts, temp.patients FROM temp_common temp INNER JOIN concept_dimension main ON temp.common_concepts = main.concept_cd) A ORDER BY common_concepts, patients DESC) B ORDER BY patients DESC;

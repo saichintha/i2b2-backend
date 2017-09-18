@@ -141,6 +141,16 @@ app.post('/api/awesome', (req, res, next) => {
 });
 
 
+app.post('/api/common', (req, res, next) => {
+  sequelize.query("SELECT DISTINCT concept_cd, COUNT(DISTINCT patient_num) FROM observation_fact WHERE patient_num IN (1000000023, 1000000047, 1000000061) AND concept_cd NOT LIKE '%DEM%' GROUP BY concept_cd ORDER BY COUNT(DISTINCT patient_num) DESC;", {
+    replacements: {patients}
+  }).spread((results, metadata) => {
+    res.set('json');
+    res.status(200).send(results);
+  })
+});
+
+
 
 app.post('/api/usingBasecode', (req, res, next) => {
   getPatientsFromBasecode(req.body.searchText)
