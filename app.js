@@ -1,7 +1,8 @@
 'use strict';
 var fs = require('fs');
 const express = require('express');
-
+var obs = require('./obs_patiens.json');
+const PATIENT_THRESHOLD = 40;
 const https = require('https');
 
 const Sequelize = require('sequelize');
@@ -101,7 +102,7 @@ app.post('/api/groupQuery', (req, res, next) => {
 
   var finalSQL = demTemplate.replace('@complexQuery', stitchedQuery);
   finalSQL = "SET search_path TO i2b2demodata; " + finalSQL;
-  
+
   sequelize.query(finalSQL).spread((results) => {
     // console.log(results);
     res.set('json');
@@ -113,7 +114,7 @@ app.post('/api/commonPattern', (req, res, next) => {
   const queryGroups = JSON.parse(req.body.queryGroups);
   var conceptTemplate = "SELECT unnest(array(SELECT DISTINCT PATIENT_NUM FROM OBSERVATION_FACT WHERE CONCEPT_CD LIKE '%@conceptTemplate%'))";
   var commonTemplate = "SET search_path TO i2b2demodata; DROP TABLE IF EXISTS temp_common; CREATE temporary TABLE temp_common AS (SELECT DISTINCT concept_cd AS common_concepts, COUNT(DISTINCT patient_num) AS patients FROM observation_fact WHERE patient_num IN (@patient_num) AND concept_cd NOT LIKE '%DEM%' AND concept_cd NOT LIKE '%Affy%' AND concept_cd NOT LIKE '%ICD9:%.%' AND concept_cd NOT LIKE '%birn%' GROUP BY concept_cd ORDER BY COUNT(DISTINCT patient_num) DESC); SELECT * FROM (SELECT DISTINCT ON (common_concepts) common_concepts, name_char, patients FROM (SELECT main.name_char, temp.common_concepts, temp.patients FROM temp_common temp INNER JOIN concept_dimension main ON temp.common_concepts = main.concept_cd) A ORDER BY common_concepts, patients DESC) B ORDER BY patients DESC;";
-  
+
   var stitchedQuery = "";
 
   for (var i in queryGroups) {
@@ -132,13 +133,17 @@ app.post('/api/commonPattern', (req, res, next) => {
   }
 
   var commonSQL = commonTemplate.replace('@patient_num', stitchedQuery);
-  console.log("Common SQL");
-  console.log(commonSQL);
+  // console.log("Common SQL");
+  // console.log(commonSQL);
 
   sequelize.query(commonSQL).spread((results) => {
-    console.log(results);
+    console.log("Complete Results" + results.length);
+    var subset = results.filter(function(concept){
+      return obs[concept.common_concepts]['count'] < PATIENT_THRESHOLD;
+    });
+    console.log("Subset Results" + subset.length);
     res.set('json');
-    res.status(200).send(results);
+    res.status(200).send(subset);
   })
 });
 
