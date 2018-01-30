@@ -1,4 +1,4 @@
-# i2b2 Backend API Server
+# [i2b2](https://www.i2b2.org) Backend API Server
 This repository contains the API implementations used by the `i2b2-client-react` project. It runs on Express and Sequelize ORM. Various API route handlers are implemented to retrive patient data, given various parameters.
 
 ## Precondition
