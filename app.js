@@ -5,8 +5,8 @@ var obs = require('./obs_patiens.json');
 const PATIENT_THRESHOLD = 26;
 const https = require('https');
 
-const Sequelize = require('sequelize');
-var bodyParser = require('body-parser');
+const Sequelize = require('sequelize'); // Database ORM
+var bodyParser = require('body-parser'); // To parse body parameters in HTTP
 var allowCrossDomain = function(req, res, next) {
     res.header('Access-Control-Allow-Origin', '*');
     res.header('Access-Control-Allow-Methods', 'GET,PUT,POST,DELETE');
@@ -14,7 +14,7 @@ var allowCrossDomain = function(req, res, next) {
     next();
 }
 
-const app = express();
+const app = express(); // Start up server
 
 app.enable('trust proxy');
 app.use( bodyParser.json() );       // to support JSON-encoded bodies
@@ -23,11 +23,7 @@ app.use(bodyParser.urlencoded({     // to support URL-encoded bodies
 }));
 app.use(allowCrossDomain);
 
-const options = {
-    cert: fs.readFileSync('cert.pem'),
-    key: fs.readFileSync('key.pem')
-};
-
+// Connect to local postgres database (i2b2 demo database)
 const sequelize = new Sequelize('i2b2', 'postgres', 'saichintha', {
   host: 'localhost',
   dialect: 'postgres',
@@ -44,6 +40,7 @@ sequelize
   .catch(err => {
     console.error('Unable to connect to the database:', err);
   });
+
 
 // ------------------------------------------------------------------------- //
 const getDimCode = "SET search_path TO i2b2demodata; SELECT CONCEPT_CD FROM concept_dimension WHERE concept_path LIKE '\\i2b2\\Demographics\\Zip codes\\Colorado\\Swink\\81077\\' escape '#';";
@@ -73,7 +70,9 @@ function getPatientDemInfo(concept_basecode) {
   });
 }
 
-
+// Webservice API handlers
+// SQL query statements may most certainly need tweaking for better performance
+// on production databases.
 // ------------------------------------------------------------------------- //
 app.post('/api/groupQuery', (req, res, next) => {
   const queryGroups = JSON.parse(req.body.queryGroups);
@@ -110,6 +109,7 @@ app.post('/api/groupQuery', (req, res, next) => {
   });
 })
 
+// Not completely developed
 app.post('/api/commonPattern', (req, res, next) => {
   const queryGroups = JSON.parse(req.body.queryGroups);
   var conceptTemplate = "SELECT unnest(array(SELECT DISTINCT PATIENT_NUM FROM OBSERVATION_FACT WHERE CONCEPT_CD LIKE '%@conceptTemplate%'))";
@@ -204,13 +204,12 @@ app.post('/api/getPatientDem', (req, res, next) => {
   .catch(err => console.log(err))
 })
 
+// Start the server on port
 // ------------------------------------------------------------------------- //
 const PORT = process.env.PORT || 9000;
 app.listen(process.env.PORT || 9000, () => {
   console.log(`App listening on port ${PORT}`);
   console.log('Press Ctrl+C to quit.');
 });
-
-https.createServer(options, app).listen(8443);
 
 module.exports = app;
