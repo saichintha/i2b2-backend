@@ -2,7 +2,7 @@
 var fs = require('fs');
 const express = require('express');
 var obs = require('./obs_patiens.json');
-const PATIENT_THRESHOLD = 40;
+const PATIENT_THRESHOLD = 26;
 const https = require('https');
 
 const Sequelize = require('sequelize');
@@ -104,7 +104,7 @@ app.post('/api/groupQuery', (req, res, next) => {
   finalSQL = "SET search_path TO i2b2demodata; " + finalSQL;
 
   sequelize.query(finalSQL).spread((results) => {
-    // console.log(results);
+    console.log(results);
     res.set('json');
     res.status(200).send(results);
   });
